@@ -6,7 +6,7 @@ from os import error
 from typing import Text
 
 
-INTEGER, PLUS, MINUS, EOF = 'INTEGER', 'PLUS', 'MINUS', 'EOF'
+INTEGER, PLUS, MINUS, MUL, DIV, EOF = 'INTEGER', 'PLUS', 'MINUS', 'MUL', 'DIV', 'EOF'
 
 class Token:
     def __init__(self, type, value):
@@ -29,7 +29,7 @@ class Lexer(object):
         self.current_char = self.text[self.pos]
 
     def error(self):
-        raise Exception('Invalid charactor')
+        raise Exception(f'Invalid charactor: {self.current_char}')
 
     def advance(self):
         self.pos += 1
@@ -67,6 +67,14 @@ class Lexer(object):
                 self.advance()
                 return Token(MINUS, '-')
 
+            if self.current_char == '*':
+                self.advance()
+                return Token(MUL, '*')
+
+            if self.current_char == '/':
+                self.advance()
+                return Token(DIV, '/')
+
             self.error()
         return Token(EOF, None)
 
@@ -89,17 +97,33 @@ class Interpreter:
         self.eat(INTEGER)
         return token.value
 
-    def expr(self):
+    def term(self):
+        """term : factor ((MUL | DIV) factor)*"""
         result = self.factor()
+
+        while self.current_token.type in (MUL, DIV):
+            token = self.current_token
+            if token.type == MUL:
+                self.eat(MUL)
+                result = result * self.factor()
+            elif token.type == DIV:
+                self.eat(DIV)
+                result = result / self.factor()
+
+        return result
+
+
+    def expr(self):
+        result = self.term()
 
         while self.current_token.type in (PLUS, MINUS):
             token = self.current_token
             if token.type == PLUS:
                 self.eat(PLUS)
-                result += self.factor()
+                result += self.term()
             elif token.type == MINUS:
                 self.eat(MINUS)
-                result -= self.factor()
+                result -= self.term()
 
         return result
 
