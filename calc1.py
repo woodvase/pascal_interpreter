@@ -4,23 +4,12 @@
 
 from os import error
 from typing import Text
+from ast import BinOp, Num
+from token import Token
 
+from visitor import Interpreter
 
 INTEGER, PLUS, MINUS, MUL, DIV, LPAREN, RPAREN, EOF = 'INTEGER', 'PLUS', 'MINUS', 'MUL', 'DIV', '(', ')', 'EOF'
-
-class Token:
-    def __init__(self, type, value):
-        self.type = type
-        self.value = value
-
-    def __str__(self):
-        return 'Token({type}, {value})'.format(
-            type = self.type,
-            value = repr(self.value)
-        )
-
-    def __repr__(self):
-        return self.__str__()
 
 class Lexer(object):
     def __init__(self, text):
@@ -86,10 +75,13 @@ class Lexer(object):
             self.error()
         return Token(EOF, None)
 
-class Interpreter:
+class Parser(object):
     def __init__(self, lexer):
         self.lexer = lexer
         self.current_token = self.lexer.get_next_token()
+
+    def parse(self):
+        return self.expr()
 
     def error(self, msg='Invalid syntax'):
         raise Exception(msg)
@@ -106,42 +98,39 @@ class Interpreter:
         token = self.current_token
         if token.type == INTEGER:
             self.eat(INTEGER)
-            return token.value
+            return Num(token)
         elif token.type == LPAREN:
             self.eat(LPAREN)
-            result = self.expr()
+            node = self.expr()
             self.eat(RPAREN)
-            return result
+            return node
 
     def term(self):
         """term : factor ((MUL | DIV) factor)*"""
-        result = self.factor()
+        node = self.factor()
 
         while self.current_token.type in (MUL, DIV):
             token = self.current_token
             if token.type == MUL:
                 self.eat(MUL)
-                result = result * self.factor()
             elif token.type == DIV:
                 self.eat(DIV)
-                result = result / self.factor()
-
-        return result
+            node = BinOp(left=node, op=token, right=self.factor())
+        return node
 
 
     def expr(self):
-        result = self.term()
+        node = self.term()
 
         while self.current_token.type in (PLUS, MINUS):
             token = self.current_token
             if token.type == PLUS:
                 self.eat(PLUS)
-                result += self.term()
             elif token.type == MINUS:
                 self.eat(MINUS)
-                result -= self.term()
+            node = BinOp(left=node, op=token, right=self.term())
 
-        return result
+        return node
 
 def main():
     while True:
@@ -152,8 +141,9 @@ def main():
         if not text:
             continue
         lexer = Lexer(text)
-        interpreter = Interpreter(lexer)
-        result = interpreter.expr()
+        parser = Parser(lexer)
+        interpreter = Interpreter(parser)
+        result = interpreter.interpret()
         print(result)
 
 if __name__ == '__main__':
